@@ -1,5 +1,8 @@
 #![allow(unused)]
 
+use crossterm::cursor::MoveTo;
+use crossterm::terminal::{Clear, ClearType};
+use std::io::{Write, stdin, stdout};
 use terminal_size::{Width, terminal_size};
 
 struct Theory {
@@ -9,7 +12,7 @@ struct Theory {
     cost: u128,
     unlock_critia: Vec<u8>,
     check: Vec<u8>,
-    unlocked: bool, 
+    unlocked: bool,
     ppt: u128,
     shown: bool,
 }
@@ -56,22 +59,23 @@ fn main() -> () {
         .map(|(Width(w), _)| w as usize)
         .unwrap_or(80);
 
-    render(
-        &mut theories,
-        width,
-        game_state.point,
-        game_state.total_pps,
-        game_state.worker,
-    );
+    loop {
+        let _ = write!(stdout(), "{}", MoveTo(0, 0));
+        let _ = write!(stdout(), "{}", Clear(ClearType::All));
+
+        render(
+            &mut theories,
+            width,
+            game_state.point,
+            game_state.total_pps,
+            game_state.worker,
+        );
+
+        get_user_input("");
+    }
 }
 
-fn render(
-    theories: &mut Vec<Theory>,
-    width: usize,
-    point: u128,
-    pps: u128,
-    workers: u8,
-) -> () {
+fn render(theories: &mut Vec<Theory>, width: usize, point: u128, pps: u128, workers: u8) -> () {
     let rounded_point: String = point.to_string();
 
     println!(
@@ -97,4 +101,16 @@ fn render(
             },
         );
     }
+}
+
+fn get_user_input(prompt: &str) -> String {
+    print!("{}", prompt);
+
+    let _ = stdout().flush();
+
+    let mut input = String::new();
+
+    stdin().read_line(&mut input).expect("Failed to read line");
+
+    input.trim().to_string()
 }
