@@ -3,6 +3,7 @@
 use crossterm::cursor::MoveTo;
 use crossterm::terminal::{Clear, ClearType};
 use std::io::{Write, stdin, stdout};
+use std::ops::Index;
 use terminal_size::{Width, terminal_size};
 
 struct Theory {
@@ -49,7 +50,7 @@ fn main() -> () {
         },
     ];
 
-    let /* mut */ game_state: GameState = GameState{
+    let mut game_state: GameState = GameState{
         point: 0,
         worker: 0,
         total_pps: 0,
@@ -59,7 +60,31 @@ fn main() -> () {
         .map(|(Width(w), _)| w as usize)
         .unwrap_or(80);
 
+    let _ = write!(stdout(), "{}", MoveTo(0, 0));
+    let _ = write!(stdout(), "{}", Clear(ClearType::All));
+
+    render(
+        &mut theories,
+        width,
+        game_state.point,
+        game_state.total_pps,
+        game_state.worker,
+    );
+
     loop {
+        let input: String = get_user_input("What do you want to unlock");
+        let mut input_index: Option<usize> = None;
+        for (i, theory) in theories.iter_mut().enumerate() {
+            if theory.name.to_lowercase() == input.to_lowercase() && theory.shown && !theory.unlocked && game_state.point >= theory.cost {
+                input_index = Some(i);
+                game_state.point -= theory.cost;
+            }
+        }
+
+        if let Some(i) = input_index {
+            theories[i].unlocked = true;
+        }
+
         let _ = write!(stdout(), "{}", MoveTo(0, 0));
         let _ = write!(stdout(), "{}", Clear(ClearType::All));
 
@@ -70,17 +95,15 @@ fn main() -> () {
             game_state.total_pps,
             game_state.worker,
         );
-
-        get_user_input("");
     }
 }
 
-fn render(theories: &mut Vec<Theory>, width: usize, point: u128, pps: u128, workers: u8) -> () {
+fn render(theories: &mut Vec<Theory>, width: usize, point: u128, pps: u128, worker: u8) -> () {
     let rounded_point: String = point.to_string();
 
     println!(
         "Score: {:>6}    PPS: {:>6}    Worker(s): {:>3}",
-        rounded_point, pps, workers
+        rounded_point, pps, worker
     );
     println!("{}", "=".repeat(width));
 
