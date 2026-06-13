@@ -1,10 +1,13 @@
 #![allow(unused)]
 
 use crossterm::cursor::MoveTo;
-use crossterm::terminal::{Clear, ClearType};
+use crossterm::event::{self, Event, KeyCode, KeyEvent};
+use crossterm::terminal::{Clear, ClearType, disable_raw_mode, enable_raw_mode};
+use std::fs::remove_dir;
 use std::io::{Write, stdin, stdout};
 use std::ops::Index;
 use std::process::ExitStatus;
+use std::time::{Duration, Instant};
 use terminal_size::{Width, terminal_size};
 
 struct Theory {
@@ -61,56 +64,86 @@ fn main() -> () {
         .map(|(Width(w), _)| w as usize)
         .unwrap_or(80);
 
-    let _ = write!(stdout(), "{}", MoveTo(0, 0));
-    let _ = write!(stdout(), "{}", Clear(ClearType::All));
-
-    render(
-        &mut theories,
-        width,
-        game_state.point,
-        game_state.total_pps,
-        game_state.worker,
-    );
+    let _ = enable_raw_mode();
+    let mut current_input: String = String::new();
+    let mut lag_accumaulator: Duration = Duration::new(0, 0);
+    let mut last_tick: Instant = Instant::now();
 
     loop {
-        let input: String = get_user_input("What do you want to unlock");
-        let mut input_index: Option<usize> = None;
-        for (i, theory) in theories.iter_mut().enumerate() {
-            if theory.name.to_lowercase() == input.to_lowercase()
-                && theory.shown
-                && !theory.unlocked
-                && game_state.point >= theory.cost
-            {
-                input_index = Some(i);
-                game_state.point -= theory.cost;
-            }
-        }
-        if let Some(i) = input_index {
-            theories[i].unlocked = true;
-        }
-
-        // let _ = get_user_input("Testing").parse().unwrap();
-        
-        let _ = write!(stdout(), "{}", MoveTo(0, 0));
-        let _ = write!(stdout(), "{}", Clear(ClearType::All));
-
-        render(
+        if game_loop(
+            &mut last_tick,
+            &mut lag_accumaulator,
+            &mut game_state,
             &mut theories,
             width,
-            game_state.point,
-            game_state.total_pps,
-            game_state.worker,
-        );
+            &mut current_input,
+        ) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(10));
     }
 }
 
-fn render(theories: &mut Vec<Theory>, width: usize, point: u128, pps: u128, worker: u8) -> () {
-    let ign_point: String = number_to_ign(point);
-    let ign_pps: String = number_to_ign(pps);
+fn game_loop(
+    mut last_tick: &mut Instant,
+    lag_accumaulator: &mut Duration,
+    game_state: &mut GameState,
+    theories: &mut Vec<Theory>,
+    width: usize,
+    current_input: &mut String,
+) -> bool {
+    let current_time: Instant = Instant::now();
+    let frame_time: Duration = current_time.duration_since(*last_tick);
+    *last_tick = current_time;
+    *lag_accumaulator += frame_time;
+
+    while *lag_accumaulator >= Duration::from_secs(1) {
+        game_state.point += game_state.total_pps;
+        *lag_accumaulator -= Duration::from_secs(1);
+    }
+
+    let _ = write!(stdout(), "{}", MoveTo(0, 0));
+    let _ = write!(stdout(), "{}", Clear(ClearType::All));
+
+    render(theories, width, &game_state);
+
+    print!("\nWhat do you want to unlock: {}", current_input);
+    let _ = stdout().flush();
+
+    while event::poll(Duration::from_millis(0)).unwrap() {
+        if let Event::Key(key_event) = event::read().unwrap() {
+            if key_event.kind == event::KeyEventKind::Press {
+                match key_event.code {
+                    KeyCode::Enter => {
+                        let trimmed_input: String = current_input.trim().to_string();
+                        unlock_show(theories, game_state, trimmed_input);
+                        current_input.clear();
+                    }
+                    KeyCode::Backspace => {
+                        current_input.pop();
+                    }
+                    KeyCode::Char(c) => {
+                        current_input.push(c);
+                    }
+                    KeyCode::Esc => {
+                        let _ = disable_raw_mode();
+                        return true;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    false
+}
+
+fn render(theories: &mut Vec<Theory>, width: usize, game_state: &GameState) -> () {
+    let ign_point: String = number_to_ign(game_state.point);
+    let ign_pps: String = number_to_ign(game_state.total_pps);
 
     println!(
         "Score: {:>6}    PPS: {:>6}    Worker(s): {:>3}",
-        ign_point, ign_pps, worker
+        ign_point, ign_pps, game_state.worker
     );
     println!("{}", "=".repeat(width));
 
@@ -119,11 +152,13 @@ fn render(theories: &mut Vec<Theory>, width: usize, point: u128, pps: u128, work
             continue;
         }
 
+        let ign_cost = number_to_ign(theory.cost);
+
         println!(
-            "{:>3}. {:.<24} Point: {:.<5}.....{}",
+            "{:>3}. {:.<24} Cost: {:.<5}.....{}",
             theory.id,
             theory.name,
-            theory.cost,
+            ign_cost,
             if theory.unlocked {
                 "Unlocked"
             } else {
@@ -166,4 +201,41 @@ fn number_to_ign(number: u128) -> String {
     } else {
         format!("{:>4.2}{}", coef, suffix)
     };
+}
+
+fn unlock_show(theories: &mut Vec<Theory>, game_state: &mut GameState, input: String) {
+    let mut input_index: Option<usize> = None;
+    for (i, theory) in theories.iter_mut().enumerate() {
+        if theory.name.to_lowercase() == input.to_lowercase()
+            && theory.shown
+            && !theory.unlocked
+            && game_state.point >= theory.cost
+        {
+            input_index = Some(i);
+            game_state.point -= theory.cost;
+        }
+    }
+    if let Some(i) = input_index {
+        theories[i].unlocked = true;
+        game_state.total_pps += theories[i].ppt;
+
+        let mut check: Vec<u8> = theories[i].check.clone();
+        for j in check {
+            let mut unlock_critia: Vec<u8> = theories[j as usize].unlock_critia.clone();
+            let mut unlock: bool = true;
+
+            for k in unlock_critia {
+                if !theories[k as usize].shown {
+                    unlock = false;
+                    break;
+                }
+            }
+
+            if unlock == false {
+                continue;
+            }
+
+            theories[j as usize].shown = true;
+        }
+    }
 }
