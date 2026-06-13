@@ -13,6 +13,7 @@ use terminal_size::{Width, terminal_size};
 struct Theory {
     id: u8,
     name: String,
+    revealed: Vec<bool>,
     equation: String,
     cost: u128,
     unlock_critia: Vec<u8>,
@@ -33,6 +34,7 @@ fn main() -> () {
         Theory {
             id: 0,
             name: "Peano's First Step".to_string(),
+            revealed: vec![false; "Peano's First Step".len()],
             equation: "1 + 1 = 2".to_string(),
             cost: 0,
             unlocked: false,
@@ -44,13 +46,14 @@ fn main() -> () {
         Theory {
             id: 1,
             name: "Addition".to_string(),
+            revealed: vec![false; "Addition".len()],
             equation: "x + y = z".to_string(),
             cost: 30,
             unlocked: false,
             unlock_critia: vec![0],
             check: vec![],
             ppt: 5,
-            shown: true,
+            shown: false,
         },
     ];
 
@@ -80,7 +83,7 @@ fn main() -> () {
         ) {
             return;
         }
-        std::thread::sleep(Duration::from_millis(10));
+        std::thread::sleep(Duration::from_millis(33));
     }
 }
 
@@ -103,11 +106,14 @@ fn game_loop(
     }
 
     let _ = write!(stdout(), "{}", MoveTo(0, 0));
-    let _ = write!(stdout(), "{}", Clear(ClearType::All));
 
     render(theories, width, &game_state);
 
-    print!("\nWhat do you want to unlock: {}", current_input);
+    print!(
+        "\nWhat do you want to unlock: {:<width$}",
+        current_input,
+        width = width
+    );
     let _ = stdout().flush();
 
     while event::poll(Duration::from_millis(0)).unwrap() {
@@ -152,18 +158,28 @@ fn render(theories: &mut Vec<Theory>, width: usize, game_state: &GameState) -> (
             continue;
         }
 
-        let ign_cost = number_to_ign(theory.cost);
+        let ign_cost: String = number_to_ign(theory.cost);
+        let mut display_name: String = String::new();
+
+        for (i, c) in theory.name.chars().enumerate() {
+            if theory.unlocked || theory.revealed.get(i).copied().unwrap_or(false) {
+                display_name.push(c);
+            } else {
+                display_name.push('_');
+            }
+        }
 
         println!(
-            "{:>3}. {:.<24} Cost: {:.<5}.....{}",
+            "{:>3}. {:.<24} Cost: {:.<5}.....{:<width$}",
             theory.id,
-            theory.name,
+            display_name,
             ign_cost,
             if theory.unlocked {
                 "Unlocked"
             } else {
                 "Locked"
             },
+            width = width,
         );
     }
 }
