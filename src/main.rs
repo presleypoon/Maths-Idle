@@ -1,7 +1,9 @@
 #![allow(unused)]
 
-use crossterm::cursor::MoveTo;
+use crossterm::cursor;
+use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
+use crossterm::execute;
 use crossterm::terminal::{Clear, ClearType, disable_raw_mode, enable_raw_mode};
 use std::fs::remove_dir;
 use std::io::{Write, stdin, stdout};
@@ -13,6 +15,7 @@ use terminal_size::{Width, terminal_size};
 struct Theory {
     id: u8,
     name: String,
+    len: usize,
     revealed: Vec<bool>,
     equation: String,
     cost: u128,
@@ -34,6 +37,7 @@ fn main() -> () {
         Theory {
             id: 0,
             name: "Peano's First Step".to_string(),
+            len: "Peano's First Step".len(),
             revealed: vec![false; "Peano's First Step".len()],
             equation: "1 + 1 = 2".to_string(),
             cost: 0,
@@ -46,6 +50,7 @@ fn main() -> () {
         Theory {
             id: 1,
             name: "Addition".to_string(),
+            len: "Addition".len(),
             revealed: vec![false; "Addition".len()],
             equation: "x + y = z".to_string(),
             cost: 30,
@@ -56,6 +61,7 @@ fn main() -> () {
             shown: false,
         },
     ];
+    let theory_len: usize = theories.len();
 
     let mut game_state: GameState = GameState {
         point: 0,
@@ -68,6 +74,7 @@ fn main() -> () {
         .unwrap_or(80);
 
     let _ = enable_raw_mode();
+    let _ = execute!(stdout(), Hide);
     let mut current_input: String = String::new();
     let mut lag_accumaulator: Duration = Duration::new(0, 0);
     let mut last_tick: Instant = Instant::now();
@@ -100,46 +107,82 @@ fn game_loop(
     *last_tick = current_time;
     *lag_accumaulator += frame_time;
 
+    point(lag_accumaulator, game_state);
+    render(theories, width, &game_state);
+    player_input(current_input, width, theories, game_state)
+}
+
+fn point(lag_accumaulator: &mut Duration, game_state: &mut GameState) -> () {
+    let _ = write!(stdout(), "{}", MoveTo(0, 0));
     while *lag_accumaulator >= Duration::from_secs(1) {
         game_state.point += game_state.total_pps;
         *lag_accumaulator -= Duration::from_secs(1);
     }
+}
 
-    let _ = write!(stdout(), "{}", MoveTo(0, 0));
+fn player_input(
+    current_input: &mut String,
+    width: usize,
+    theories: &mut Vec<Theory>,
+    game_state: &mut GameState,
+) -> bool {
+    prompt(current_input, width);
+    input_event(current_input, theories, game_state)
+}
 
-    render(theories, width, &game_state);
-
+fn prompt(current_input: &mut String, width: usize) -> () {
     print!(
         "\nWhat do you want to unlock: {:<width$}",
         current_input,
         width = width
     );
     let _ = stdout().flush();
+}
 
+fn input_event(
+    current_input: &mut String,
+    theories: &mut Vec<Theory>,
+    game_state: &mut GameState,
+) -> bool {
     while event::poll(Duration::from_millis(0)).unwrap() {
-        if let Event::Key(key_event) = event::read().unwrap() {
-            if key_event.kind == event::KeyEventKind::Press {
-                match key_event.code {
-                    KeyCode::Enter => {
-                        let trimmed_input: String = current_input.trim().to_string();
-                        unlock_show(theories, game_state, trimmed_input);
-                        current_input.clear();
-                    }
-                    KeyCode::Backspace => {
-                        current_input.pop();
-                    }
-                    KeyCode::Char(c) => {
-                        current_input.push(c);
-                    }
-                    KeyCode::Esc => {
-                        let _ = disable_raw_mode();
-                        return true;
-                    }
-                    _ => {}
-                }
-            }
+        let Event::Key(key_event) = event::read().unwrap() else {
+            continue;
+        };
+        if key_event.kind != event::KeyEventKind::Press {
+            continue;
         }
+        if button_macro(key_event, current_input, theories, game_state) {
+            return true;
+        };
     }
+    false
+}
+
+fn button_macro(
+    key_event: KeyEvent,
+    current_input: &mut String,
+    theories: &mut Vec<Theory>,
+    game_state: &mut GameState,
+) -> bool {
+    match key_event.code {
+        KeyCode::Enter => {
+            let trimmed_input: String = current_input.trim().to_string();
+            unlock_show(theories, game_state, trimmed_input);
+            current_input.clear();
+        }
+        KeyCode::Backspace => {
+            current_input.pop();
+        }
+        KeyCode::Char(c) => {
+            current_input.push(c);
+        }
+        KeyCode::Esc => {
+            let _ = disable_raw_mode();
+            let _ = execute!(stdout(), Show);
+            return true;
+        }
+        _ => {}
+    };
     false
 }
 
