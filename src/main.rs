@@ -1,14 +1,11 @@
 #![allow(unused)]
 
-use crossterm::cursor;
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use crossterm::execute;
 use crossterm::terminal::{Clear, ClearType, disable_raw_mode, enable_raw_mode};
-use std::fs::remove_dir;
-use std::io::{Write, stdin, stdout};
-use std::ops::Index;
-use std::process::ExitStatus;
+use rand::RngExt;
+use std::io::{Write, stdout};
 use std::time::{Duration, Instant};
 use terminal_size::{Width, terminal_size};
 
@@ -17,7 +14,7 @@ struct Theory {
     name: String,
     len: usize,
     revealed: Vec<bool>,
-    equation: String,
+    // equation: String,
     cost: u128,
     unlock_critia: Vec<u8>,
     check: Vec<u8>,
@@ -39,7 +36,7 @@ fn main() -> () {
             name: "Peano's First Step".to_string(),
             len: "Peano's First Step".len(),
             revealed: vec![false; "Peano's First Step".len()],
-            equation: "1 + 1 = 2".to_string(),
+            // equation: "1 + 1 = 2".to_string(),
             cost: 0,
             unlocked: false,
             unlock_critia: vec![],
@@ -48,24 +45,23 @@ fn main() -> () {
             shown: true,
         },
         Theory {
-            id: 1,
+            id: 2,
             name: "Addition".to_string(),
             len: "Addition".len(),
             revealed: vec![false; "Addition".len()],
-            equation: "x + y = z".to_string(),
+            // equation: "x + y = z".to_string(),
             cost: 30,
             unlocked: false,
-            unlock_critia: vec![0],
-            check: vec![],
+            unlock_critia: vec![1],
+            check: vec![3],
             ppt: 5,
             shown: false,
         },
     ];
-    let theory_len: usize = theories.len();
 
     let mut game_state: GameState = GameState {
         point: 0,
-        worker: 0,
+        worker: 1,
         total_pps: 0,
     };
 
@@ -75,12 +71,14 @@ fn main() -> () {
 
     let _ = enable_raw_mode();
     let _ = execute!(stdout(), Hide);
+    let _ = write!(stdout(), "{}", Clear(ClearType::All));
+
     let mut current_input: String = String::new();
     let mut lag_accumaulator: Duration = Duration::new(0, 0);
     let mut last_tick: Instant = Instant::now();
 
     loop {
-        if game_loop(
+        if game_tick(
             &mut last_tick,
             &mut lag_accumaulator,
             &mut game_state,
@@ -94,8 +92,8 @@ fn main() -> () {
     }
 }
 
-fn game_loop(
-    mut last_tick: &mut Instant,
+fn game_tick(
+    last_tick: &mut Instant,
     lag_accumaulator: &mut Duration,
     game_state: &mut GameState,
     theories: &mut Vec<Theory>,
@@ -109,6 +107,7 @@ fn game_loop(
 
     point(lag_accumaulator, game_state);
     render(theories, width, &game_state);
+    worker_theories(theories, game_state.worker);
     player_input(current_input, width, theories, game_state)
 }
 
@@ -118,6 +117,70 @@ fn point(lag_accumaulator: &mut Duration, game_state: &mut GameState) -> () {
         game_state.point += game_state.total_pps;
         *lag_accumaulator -= Duration::from_secs(1);
     }
+}
+
+fn render(theories: &mut Vec<Theory>, width: usize, game_state: &GameState) -> () {
+    let ign_point: String = number_to_ign(game_state.point);
+    let ign_pps: String = number_to_ign(game_state.total_pps);
+
+    println!(
+        "Score: {:>6}    PPS: {:>6}    Worker(s): {:>3}",
+        ign_point, ign_pps, game_state.worker
+    );
+    println!("{}", "=".repeat(width));
+
+    for theory in theories {
+        if !theory.shown {
+            continue;
+        }
+
+        let ign_cost: String = number_to_ign(theory.cost);
+        let mut display_name: String = String::new();
+
+        for (i, c) in theory.name.chars().enumerate() {
+            if theory.unlocked || theory.revealed.get(i).copied().unwrap_or(false) {
+                display_name.push(c);
+            } else {
+                display_name.push('_');
+            }
+        }
+
+        println!(
+            "{:>3}. {:.<24} Cost: {:.<5}.....{:<width$}",
+            theory.id,
+            display_name,
+            ign_cost,
+            if theory.unlocked {
+                "Unlocked"
+            } else {
+                "Locked"
+            },
+            width = width,
+        );
+    }
+}
+
+fn number_to_ign(number: u128) -> String {
+    if number < 1000 {
+        return format!("{:>4}  ", number);
+    }
+
+    let suffixes: [&str; 12] = [
+        "K ", "M ", "B ", "T ", "Qa", "Qi", "Sx", "Sp", "O ", "N ", "D ", "U ",
+    ];
+
+    let f_num: f32 = number as f32;
+    let exp_i_div_3: usize = (f_num.log10() / 3.0) as usize;
+    let coef: f32 = f_num / 1000_f32.powi(exp_i_div_3 as i32);
+    let suffix: &str = suffixes[exp_i_div_3 - 1];
+
+    return if coef >= 100.0 {
+        format!("{:>4.0}{}", coef, suffix)
+    } else if coef >= 10.0 {
+        format!("{:>4.1}{}", coef, suffix)
+    } else {
+        format!("{:>4.2}{}", coef, suffix)
+    };
 }
 
 fn player_input(
@@ -186,80 +249,43 @@ fn button_macro(
     false
 }
 
-fn render(theories: &mut Vec<Theory>, width: usize, game_state: &GameState) -> () {
-    let ign_point: String = number_to_ign(game_state.point);
-    let ign_pps: String = number_to_ign(game_state.total_pps);
+fn worker_theories(theories: &mut Vec<Theory>, worker: u8) {
+    let mut rng: rand::prelude::ThreadRng = rand::rng();
 
-    println!(
-        "Score: {:>6}    PPS: {:>6}    Worker(s): {:>3}",
-        ign_point, ign_pps, game_state.worker
-    );
-    println!("{}", "=".repeat(width));
+    for _ in 0..worker {
+        let mut done: Vec<bool> = vec![false; theories.len()];
 
-    for theory in theories {
-        if !theory.shown {
+        loop {
+            let len: usize = theories.len();
+            let index: usize = rng.random_range(0..len);
+            let theory: &mut Theory = &mut theories[index];
+            if done.iter().all(|&x| x) {
+                return;
+            }
+            if !theory.shown || done[index] {
+                done[index] = true;
+                continue;
+            }
+            worker_theory(theory, &mut rng);
+            return;
+        }
+    }
+}
+
+fn worker_theory(theory: &mut Theory, rng: &mut rand::prelude::ThreadRng) -> () {
+    let mut done: Vec<bool> = vec![false; theory.len];
+    loop {
+        let index: usize = rng.random_range(0..theory.revealed.len());
+        if theory.revealed.iter().all(|&x| x) || done.iter().all(|&x| x) {
+            return;
+        }
+        if theory.revealed[index] || done[index] {
+            done[index] = true;
             continue;
         }
-
-        let ign_cost: String = number_to_ign(theory.cost);
-        let mut display_name: String = String::new();
-
-        for (i, c) in theory.name.chars().enumerate() {
-            if theory.unlocked || theory.revealed.get(i).copied().unwrap_or(false) {
-                display_name.push(c);
-            } else {
-                display_name.push('_');
-            }
-        }
-
-        println!(
-            "{:>3}. {:.<24} Cost: {:.<5}.....{:<width$}",
-            theory.id,
-            display_name,
-            ign_cost,
-            if theory.unlocked {
-                "Unlocked"
-            } else {
-                "Locked"
-            },
-            width = width,
-        );
+        theory.revealed[index] = true;
+        return;
     }
-}
-
-fn get_user_input(prompt: &str) -> String {
-    print!("{}: ", prompt);
-
-    let _ = stdout().flush();
-
-    let mut input = String::new();
-
-    stdin().read_line(&mut input).expect("Failed to read line");
-
-    input.trim().to_string()
-}
-
-fn number_to_ign(number: u128) -> String {
-    if number < 1000 {
-        return format!("{:>4}  ", number);
-    }
-
-    let suffixes: [&str; 12] = [
-        "K ", "M ", "B ", "T ", "Qa", "Qi", "Sx", "Sp", "O ", "N ", "D ", "U ",
-    ];
-
-    let f_num: f32 = number as f32;
-    let exp_i_div_3: usize = (f_num.log10() / 3.0) as usize;
-    let coef: f32 = f_num / 1000_f32.powi(exp_i_div_3 as i32);
-    let suffix: &str = suffixes[exp_i_div_3 - 1];
-
-    return if coef >= 100.0 {
-        format!("{:>4.0}{}", coef, suffix)
-    } else if coef >= 10.0 {
-        format!("{:>4.1}{}", coef, suffix)
-    } else {
-        format!("{:>4.2}{}", coef, suffix)
-    };
 }
 
 fn unlock_show(theories: &mut Vec<Theory>, game_state: &mut GameState, input: String) {
@@ -278,9 +304,9 @@ fn unlock_show(theories: &mut Vec<Theory>, game_state: &mut GameState, input: St
         theories[i].unlocked = true;
         game_state.total_pps += theories[i].ppt;
 
-        let mut check: Vec<u8> = theories[i].check.clone();
+        let check: Vec<u8> = theories[i].check.clone();
         for j in check {
-            let mut unlock_critia: Vec<u8> = theories[j as usize].unlock_critia.clone();
+            let unlock_critia: Vec<u8> = theories[j as usize].unlock_critia.clone();
             let mut unlock: bool = true;
 
             for k in unlock_critia {
