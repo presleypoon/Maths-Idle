@@ -5,18 +5,23 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use crossterm::execute;
 use crossterm::terminal::{Clear, ClearType, disable_raw_mode, enable_raw_mode};
 use rand::RngExt;
+use serde::Deserialize;
+use std::fs::File;
+use std::io::Read;
 use std::io::{Write, stdout};
 use std::time::{Duration, Instant};
 use terminal_size::{Width, terminal_size};
 
+#[derive(Debug, Deserialize, Clone)]
 struct Theory {
     id: u8,
     name: String,
     len: usize,
     revealed: Vec<bool>,
-    // equation: String,
+    #[serde(rename = "_equation")]
+    equation: String,
     cost: u128,
-    unlock_critia: Vec<u8>,
+    unlock_criteria: Vec<u8>,
     check: Vec<u8>,
     unlocked: bool,
     ppt: u128,
@@ -26,43 +31,18 @@ struct Theory {
 struct GameState {
     point: u128,
     worker: u8,
+    theories: Vec<Theory>,
     total_pps: u128,
 }
 
 fn main() -> () {
-    let mut theories: Vec<Theory> = vec![
-        Theory {
-            id: 0,
-            name: "Peano's First Step".to_string(),
-            len: "Peano's First Step".len(),
-            revealed: vec![false; "Peano's First Step".len()],
-            // equation: "1 + 1 = 2".to_string(),
-            cost: 0,
-            unlocked: false,
-            unlock_critia: vec![],
-            check: vec![1],
-            ppt: 1,
-            shown: true,
-        },
-        Theory {
-            id: 2,
-            name: "Addition".to_string(),
-            len: "Addition".len(),
-            revealed: vec![false; "Addition".len()],
-            // equation: "x + y = z".to_string(),
-            cost: 30,
-            unlocked: false,
-            unlock_critia: vec![1],
-            check: vec![3],
-            ppt: 5,
-            shown: false,
-        },
-    ];
+    let loaded_theories: Vec<Theory> = load_theories();
 
     let mut game_state: GameState = GameState {
         point: 0,
         worker: 1,
         total_pps: 0,
+        theories: loaded_theories,
     };
 
     let width: usize = terminal_size()
@@ -82,7 +62,6 @@ fn main() -> () {
             &mut last_tick,
             &mut lag_accumaulator,
             &mut game_state,
-            &mut theories,
             width,
             &mut current_input,
         ) {
@@ -92,11 +71,32 @@ fn main() -> () {
     }
 }
 
+fn load_theories() -> Vec<Theory> {
+    let mut file = File::open("resources/theories.json")
+        .expect("CRITICAL: Missing resources/theories.json file!");
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)
+        .expect("CRITICAL: Failed to read theories.json contents!");
+    let theories: Vec<Theory> = serde_json::from_str(&contents)
+        .expect("CRITICAL: theories.json syntax error or field mismatch!");
+
+    for theory in &theories {
+        assert_eq!(
+            theory.len,
+            theory.revealed.len(),
+            "Data mismatch in theory '{}': 'len) is {}, but 'revealed' array has {} items!",
+            theory.name,
+            theory.len,
+            theory.revealed.len()
+        );
+    }
+    theories
+}
+
 fn game_tick(
     last_tick: &mut Instant,
     lag_accumaulator: &mut Duration,
     game_state: &mut GameState,
-    theories: &mut Vec<Theory>,
     width: usize,
     current_input: &mut String,
 ) -> bool {
@@ -106,9 +106,9 @@ fn game_tick(
     *lag_accumaulator += frame_time;
 
     point(lag_accumaulator, game_state);
-    render(theories, width, &game_state);
-    worker_theories(theories, game_state.worker);
-    player_input(current_input, width, theories, game_state)
+    render(width, &game_state);
+    worker_theories(&mut game_state.theories, game_state.worker);
+    player_input(current_input, width, game_state)
 }
 
 fn point(lag_accumaulator: &mut Duration, game_state: &mut GameState) -> () {
@@ -119,7 +119,7 @@ fn point(lag_accumaulator: &mut Duration, game_state: &mut GameState) -> () {
     }
 }
 
-fn render(theories: &mut Vec<Theory>, width: usize, game_state: &GameState) -> () {
+fn render(width: usize, game_state: &GameState) -> () {
     let ign_point: String = number_to_ign(game_state.point);
     let ign_pps: String = number_to_ign(game_state.total_pps);
 
@@ -129,7 +129,7 @@ fn render(theories: &mut Vec<Theory>, width: usize, game_state: &GameState) -> (
     );
     println!("{}", "=".repeat(width));
 
-    for theory in theories {
+    for theory in &game_state.theories {
         if !theory.shown {
             continue;
         }
@@ -183,14 +183,9 @@ fn number_to_ign(number: u128) -> String {
     };
 }
 
-fn player_input(
-    current_input: &mut String,
-    width: usize,
-    theories: &mut Vec<Theory>,
-    game_state: &mut GameState,
-) -> bool {
+fn player_input(current_input: &mut String, width: usize, game_state: &mut GameState) -> bool {
     prompt(current_input, width);
-    input_event(current_input, theories, game_state)
+    input_event(current_input, game_state)
 }
 
 fn prompt(current_input: &mut String, width: usize) -> () {
@@ -202,11 +197,7 @@ fn prompt(current_input: &mut String, width: usize) -> () {
     let _ = stdout().flush();
 }
 
-fn input_event(
-    current_input: &mut String,
-    theories: &mut Vec<Theory>,
-    game_state: &mut GameState,
-) -> bool {
+fn input_event(current_input: &mut String, game_state: &mut GameState) -> bool {
     while event::poll(Duration::from_millis(0)).unwrap() {
         let Event::Key(key_event) = event::read().unwrap() else {
             continue;
@@ -214,7 +205,7 @@ fn input_event(
         if key_event.kind != event::KeyEventKind::Press {
             continue;
         }
-        if button_macro(key_event, current_input, theories, game_state) {
+        if button_macro(key_event, current_input, game_state) {
             return true;
         };
     }
@@ -224,13 +215,12 @@ fn input_event(
 fn button_macro(
     key_event: KeyEvent,
     current_input: &mut String,
-    theories: &mut Vec<Theory>,
     game_state: &mut GameState,
 ) -> bool {
     match key_event.code {
         KeyCode::Enter => {
             let trimmed_input: String = current_input.trim().to_string();
-            unlock_show(theories, game_state, trimmed_input);
+            unlock_show(game_state, trimmed_input);
             current_input.clear();
         }
         KeyCode::Backspace => {
@@ -288,9 +278,9 @@ fn worker_theory(theory: &mut Theory, rng: &mut rand::prelude::ThreadRng) -> () 
     }
 }
 
-fn unlock_show(theories: &mut Vec<Theory>, game_state: &mut GameState, input: String) {
+fn unlock_show(game_state: &mut GameState, input: String) {
     let mut input_index: Option<usize> = None;
-    for (i, theory) in theories.iter_mut().enumerate() {
+    for (i, theory) in game_state.theories.iter_mut().enumerate() {
         if theory.name.to_lowercase() == input.to_lowercase()
             && theory.shown
             && !theory.unlocked
@@ -301,16 +291,16 @@ fn unlock_show(theories: &mut Vec<Theory>, game_state: &mut GameState, input: St
         }
     }
     if let Some(i) = input_index {
-        theories[i].unlocked = true;
-        game_state.total_pps += theories[i].ppt;
+        game_state.theories[i].unlocked = true;
+        game_state.total_pps += game_state.theories[i].ppt;
 
-        let check: Vec<u8> = theories[i].check.clone();
+        let check: Vec<u8> = game_state.theories[i].check.clone();
         for j in check {
-            let unlock_critia: Vec<u8> = theories[j as usize].unlock_critia.clone();
+            let unlock_critia: Vec<u8> = game_state.theories[j as usize].unlock_criteria.clone();
             let mut unlock: bool = true;
 
             for k in unlock_critia {
-                if !theories[k as usize].shown {
+                if !game_state.theories[k as usize].shown {
                     unlock = false;
                     break;
                 }
@@ -320,7 +310,7 @@ fn unlock_show(theories: &mut Vec<Theory>, game_state: &mut GameState, input: St
                 continue;
             }
 
-            theories[j as usize].shown = true;
+            game_state.theories[j as usize].shown = true;
         }
     }
 }

@@ -1,0 +1,177 @@
+[
+	{
+		"id": 0,
+		"name": "Peano's First Step",
+		"len": 18,
+		"revealed": [
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false
+		],
+		"_equation": "1 + 1 = 2",
+		"cost": 0,
+		"unlocked": false,
+		"unlock_critia": [],
+		"check": [
+			1
+		],
+		"ppt": 1,
+		"shown": true
+	},
+	{
+		"id": 1,
+		"name": "Number Line",
+		"len": 11,
+		"revealed": [
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false
+		],
+		"_equation": "0, 1, 2, 3, 4, 5, 6 ...",
+		"cost": 10,
+		"unlocked": false,
+		"unlock_critia": [
+			0
+		],
+		"check": [
+			2,
+			3
+		],
+		"ppt": 3,
+		"shown": false
+	},
+	{
+		"id": 2,
+		"name": "Addition",
+		"len": 8,
+		"revealed": [
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false
+		],
+		"_equation": "x + y = z",
+		"cost": 30,
+		"unlocked": false,
+		"unlock_critia": [
+			1
+		],
+		"check": [
+			3
+		],
+		"ppt": 5,
+		"shown": false
+	},
+	{
+		"id": 3,
+		"name": "Subtraction",
+		"len": 11,
+		"revealed": [
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false
+		],
+		"_equation": "x - y = z",
+		"cost": 50,
+		"unlocked": false,
+		"unlock_critia": [
+			1,
+			2
+		],
+		"check": [
+			4
+		],
+		"ppt": 10,
+		"shown": false
+	},
+	{
+		"id": 4,
+		"name": "Negative",
+		"len": 8,
+		"revealed": [
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false
+		],
+		"_equation": "-x",
+		"cost": 100,
+		"unlocked": false,
+		"unlock_critia": [
+			3
+		],
+		"check": [],
+		"ppt": 20,
+		"shown": false
+	},
+	{
+		"id": 5,
+		"name": "Multiplication",
+		"len": 14,
+		"revealed": [
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false
+		],
+		"_equation": "x × y = z",
+		"cost": 100,
+		"unlocked": false,
+		"unlock_critia": [
+			2
+		],
+		"check": [],
+		"ppt": 20,
+		"shown": false
+	}
+]
