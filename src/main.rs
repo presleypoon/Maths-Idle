@@ -1,4 +1,4 @@
-#![allow(unused)]
+// #![allow(unused)]
 
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::event::{self, Event, KeyCode, KeyEvent};
@@ -98,13 +98,14 @@ fn game_tick(
 ) -> bool {
     let current_time: Instant = Instant::now();
     let frame_time: Duration = current_time.duration_since(*last_tick);
+    let cost: u128 = (50.0 * 1.07_f32.powi(game_state.worker as i32)) as u128;
     *last_tick = current_time;
     *lag_accumaulator += frame_time;
 
     point(lag_accumaulator, game_state);
-    render(width, &game_state);
+    render(width, &game_state, cost);
     worker_theories(&mut game_state.theories, game_state.worker);
-    player_input(current_input, width, game_state)
+    player_input(current_input, width, game_state, cost)
 }
 
 fn point(lag_accumaulator: &mut Duration, game_state: &mut GameState) -> () {
@@ -115,13 +116,17 @@ fn point(lag_accumaulator: &mut Duration, game_state: &mut GameState) -> () {
     }
 }
 
-fn render(width: usize, game_state: &GameState) -> () {
-    let ign_point: String = number_to_ign(game_state.point);
-    let ign_pps: String = number_to_ign(game_state.total_pps);
-
+fn render(width: usize, game_state: &GameState, cost: u128) -> () {
     println!(
-        "Score: {:>6}    PPS: {:>6}    Worker(s): {:>3}",
-        ign_point, ign_pps, game_state.worker
+        "Score: {:>6}    PPS: {:>6}    Worker(s): {:>3}    Worker Cost: {:>6}",
+        number_to_ign(game_state.point),
+        number_to_ign(game_state.total_pps),
+        game_state.worker,
+        if game_state.worker < 1000 {
+            number_to_ign(cost)
+        } else {
+            "MAXED!".to_string()
+        },
     );
     println!("{}", "=".repeat(width));
 
@@ -130,7 +135,6 @@ fn render(width: usize, game_state: &GameState) -> () {
             continue;
         }
 
-        let ign_cost: String = number_to_ign(theory.cost);
         let mut display_name: String = String::new();
 
         for (i, c) in theory.name.chars().enumerate() {
@@ -145,7 +149,7 @@ fn render(width: usize, game_state: &GameState) -> () {
             "{:>3}. {:.<24} Cost: {:.<5}.....{:<width$}",
             theory.id,
             display_name,
-            ign_cost,
+            number_to_ign(theory.cost),
             if theory.unlocked {
                 "Unlocked"
             } else {
@@ -179,9 +183,14 @@ fn number_to_ign(number: u128) -> String {
     };
 }
 
-fn player_input(current_input: &mut String, width: usize, game_state: &mut GameState) -> bool {
+fn player_input(
+    current_input: &mut String,
+    width: usize,
+    game_state: &mut GameState,
+    cost: u128,
+) -> bool {
     prompt(current_input, width);
-    input_event(current_input, game_state)
+    input_event(current_input, game_state, cost)
 }
 
 fn prompt(current_input: &mut String, width: usize) -> () {
@@ -193,7 +202,7 @@ fn prompt(current_input: &mut String, width: usize) -> () {
     let _ = stdout().flush();
 }
 
-fn input_event(current_input: &mut String, game_state: &mut GameState) -> bool {
+fn input_event(current_input: &mut String, game_state: &mut GameState, cost: u128) -> bool {
     while event::poll(Duration::from_millis(0)).unwrap() {
         let Event::Key(key_event) = event::read().unwrap() else {
             continue;
@@ -201,7 +210,7 @@ fn input_event(current_input: &mut String, game_state: &mut GameState) -> bool {
         if key_event.kind != event::KeyEventKind::Press {
             continue;
         }
-        if button_macro(key_event, current_input, game_state) {
+        if button_macro(key_event, current_input, game_state, cost) {
             return true;
         };
     }
@@ -212,11 +221,12 @@ fn button_macro(
     key_event: KeyEvent,
     current_input: &mut String,
     game_state: &mut GameState,
+    cost: u128,
 ) -> bool {
     match key_event.code {
         KeyCode::Enter => {
             let trimmed_input: String = current_input.trim().to_string();
-            unlock_show(game_state, trimmed_input);
+            unlock_show(game_state, trimmed_input, cost);
             current_input.clear();
         }
         KeyCode::Backspace => {
@@ -277,9 +287,9 @@ fn worker_theory(theory: &mut Theory, rng: &mut rand::prelude::ThreadRng) -> () 
     }
 }
 
-fn unlock_show(game_state: &mut GameState, input: String) {
+fn unlock_show(game_state: &mut GameState, input: String, cost: u128) {
     if input == "worker" {
-        check_unlock_worker(game_state);
+        check_unlock_worker(game_state, cost);
         return;
     }
     let mut input_index: Option<usize> = None;
@@ -318,9 +328,8 @@ fn unlock_show(game_state: &mut GameState, input: String) {
     }
 }
 
-fn check_unlock_worker(game_state: &mut GameState) -> () {
-    let cost: u128 = 1.05_f32.powi(game_state.worker as i32) as u128;
-    if cost > game_state.point || game_state.worker >= 1800 {
+fn check_unlock_worker(game_state: &mut GameState, cost: u128) -> () {
+    if cost > game_state.point || game_state.worker >= 1000 {
         return;
     }
 
