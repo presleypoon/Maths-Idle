@@ -151,7 +151,7 @@ fn render(width: usize, game_state: &GameState, cost: u128) -> () {
 
         let mut display_equ: String = String::new();
         for (i, c) in theory.equation.chars().enumerate() {
-            if theory.unlocked || theory.name_revealed.get(i).copied().unwrap_or(false) {
+            if theory.unlocked || theory.equ_revealed.get(i).copied().unwrap_or(false) {
                 display_equ.push(c);
             } else {
                 display_equ.push('_');
