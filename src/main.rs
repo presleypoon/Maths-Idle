@@ -42,7 +42,7 @@ fn main() -> () {
 
     let mut game_state: GameState = GameState {
         point: 0,
-        worker: 0,
+        worker: 1,
         total_pps: 0,
         theories: loaded_theories,
     };
