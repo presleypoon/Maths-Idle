@@ -159,7 +159,7 @@ fn render(width: usize, game_state: &GameState, cost: u128) -> () {
         }
 
         println!(
-            "{:>3}. {}\n     {:.<24} Cost: {:.<5}.....{:<width$}",
+            "{:>3}. {:<24}\n     {:.<24} Cost: {:.<5}.....{:<width$}",
             theory.id,
             display_name,
             display_equ,
