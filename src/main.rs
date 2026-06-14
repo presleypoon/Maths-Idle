@@ -5,18 +5,20 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent};
 use crossterm::execute;
 use crossterm::terminal::{Clear, ClearType, disable_raw_mode, enable_raw_mode};
 use rand::RngExt;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Read;
 use std::io::{Write, stdout};
 use std::time::{Duration, Instant};
 use terminal_size::{Width, terminal_size};
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct Theory {
     id: u8,
     name: String,
+    #[serde(skip)]
     len: usize,
+    #[serde(skip)]
     revealed: Vec<bool>,
     #[serde(rename = "_equation")]
     equation: String,
@@ -30,7 +32,7 @@ struct Theory {
 
 struct GameState {
     point: u128,
-    worker: u8,
+    worker: u16,
     theories: Vec<Theory>,
     total_pps: u128,
 }
@@ -40,7 +42,7 @@ fn main() -> () {
 
     let mut game_state: GameState = GameState {
         point: 0,
-        worker: 1,
+        worker: 0,
         total_pps: 0,
         theories: loaded_theories,
     };
@@ -72,23 +74,17 @@ fn main() -> () {
 }
 
 fn load_theories() -> Vec<Theory> {
-    let mut file = File::open("resources/theories.json")
+    let mut file: File = File::open("resources/theories.json")
         .expect("CRITICAL: Missing resources/theories.json file!");
-    let mut contents = String::new();
+    let mut contents: String = String::new();
     file.read_to_string(&mut contents)
         .expect("CRITICAL: Failed to read theories.json contents!");
-    let theories: Vec<Theory> = serde_json::from_str(&contents)
+    let mut theories: Vec<Theory> = serde_json::from_str(&contents)
         .expect("CRITICAL: theories.json syntax error or field mismatch!");
 
-    for theory in &theories {
-        assert_eq!(
-            theory.len,
-            theory.revealed.len(),
-            "Data mismatch in theory '{}': 'len) is {}, but 'revealed' array has {} items!",
-            theory.name,
-            theory.len,
-            theory.revealed.len()
-        );
+    for theory in &mut theories {
+        theory.len = theory.name.len();
+        theory.revealed = vec![false; theory.len];
     }
     theories
 }
@@ -239,10 +235,13 @@ fn button_macro(
     false
 }
 
-fn worker_theories(theories: &mut Vec<Theory>, worker: u8) {
+fn worker_theories(theories: &mut Vec<Theory>, worker: u16) {
     let mut rng: rand::prelude::ThreadRng = rand::rng();
 
     for _ in 0..worker {
+        if rng.random_range(0..100) != 0 {
+            continue;
+        }
         let mut done: Vec<bool> = vec![false; theories.len()];
 
         loop {
@@ -279,6 +278,10 @@ fn worker_theory(theory: &mut Theory, rng: &mut rand::prelude::ThreadRng) -> () 
 }
 
 fn unlock_show(game_state: &mut GameState, input: String) {
+    if input == "worker" {
+        check_unlock_worker(game_state);
+        return;
+    }
     let mut input_index: Option<usize> = None;
     for (i, theory) in game_state.theories.iter_mut().enumerate() {
         if theory.name.to_lowercase() == input.to_lowercase()
@@ -313,4 +316,14 @@ fn unlock_show(game_state: &mut GameState, input: String) {
             game_state.theories[j as usize].shown = true;
         }
     }
+}
+
+fn check_unlock_worker(game_state: &mut GameState) -> () {
+    let cost: u128 = 1.05_f32.powi(game_state.worker as i32) as u128;
+    if cost > game_state.point || game_state.worker >= 1800 {
+        return;
+    }
+
+    game_state.point -= cost;
+    game_state.worker += 1;
 }

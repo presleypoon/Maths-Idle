@@ -2,30 +2,10 @@
 	{
 		"id": 0,
 		"name": "Peano's First Step",
-		"len": 18,
-		"revealed": [
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false
-		],
 		"_equation": "1 + 1 = 2",
 		"cost": 0,
 		"unlocked": false,
-		"unlock_critia": [],
+		"unlock_criteria": [],
 		"check": [
 			1
 		],
@@ -35,24 +15,10 @@
 	{
 		"id": 1,
 		"name": "Number Line",
-		"len": 11,
-		"revealed": [
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false
-		],
 		"_equation": "0, 1, 2, 3, 4, 5, 6 ...",
 		"cost": 10,
 		"unlocked": false,
-		"unlock_critia": [
+		"unlock_criteria": [
 			0
 		],
 		"check": [
@@ -65,25 +31,14 @@
 	{
 		"id": 2,
 		"name": "Addition",
-		"len": 8,
-		"revealed": [
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false
-		],
 		"_equation": "x + y = z",
 		"cost": 30,
 		"unlocked": false,
-		"unlock_critia": [
+		"unlock_criteria": [
 			1
 		],
 		"check": [
-			3
+			3, 5
 		],
 		"ppt": 5,
 		"shown": false
@@ -91,24 +46,10 @@
 	{
 		"id": 3,
 		"name": "Subtraction",
-		"len": 11,
-		"revealed": [
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false
-		],
 		"_equation": "x - y = z",
 		"cost": 50,
 		"unlocked": false,
-		"unlock_critia": [
+		"unlock_criteria": [
 			1,
 			2
 		],
@@ -135,7 +76,7 @@
 		"_equation": "-x",
 		"cost": 100,
 		"unlocked": false,
-		"unlock_critia": [
+		"unlock_criteria": [
 			3
 		],
 		"check": [],
@@ -145,29 +86,10 @@
 	{
 		"id": 5,
 		"name": "Multiplication",
-		"len": 14,
-		"revealed": [
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false,
-			false
-		],
 		"_equation": "x × y = z",
 		"cost": 100,
 		"unlocked": false,
-		"unlock_critia": [
+		"unlock_criteria": [
 			2
 		],
 		"check": [],
