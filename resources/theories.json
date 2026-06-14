@@ -2,7 +2,7 @@
 	{
 		"id": 0,
 		"name": "Peano's First Step",
-		"_equation": "1 + 1 = 2",
+		"equation": "1 + 1 = 2",
 		"cost": 0,
 		"unlocked": false,
 		"unlock_criteria": [],
@@ -15,7 +15,7 @@
 	{
 		"id": 1,
 		"name": "Number Line",
-		"_equation": "0, 1, 2, 3, 4, 5, 6 ...",
+		"equation": "0, 1, 2, 3, 4, 5, 6 ...",
 		"cost": 10,
 		"unlocked": false,
 		"unlock_criteria": [
@@ -31,7 +31,7 @@
 	{
 		"id": 2,
 		"name": "Addition",
-		"_equation": "x + y = z",
+		"equation": "x + y = z",
 		"cost": 30,
 		"unlocked": false,
 		"unlock_criteria": [
@@ -46,7 +46,7 @@
 	{
 		"id": 3,
 		"name": "Subtraction",
-		"_equation": "x - y = z",
+		"equation": "x - y = z",
 		"cost": 50,
 		"unlocked": false,
 		"unlock_criteria": [
@@ -73,7 +73,7 @@
 			false,
 			false
 		],
-		"_equation": "-x",
+		"equation": "-x",
 		"cost": 100,
 		"unlocked": false,
 		"unlock_criteria": [
@@ -86,7 +86,7 @@
 	{
 		"id": 5,
 		"name": "Multiplication",
-		"_equation": "x × y = z",
+		"equation": "x × y = z",
 		"cost": 100,
 		"unlocked": false,
 		"unlock_criteria": [

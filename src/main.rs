@@ -17,11 +17,14 @@ struct Theory {
     id: u8,
     name: String,
     #[serde(skip)]
-    len: usize,
+    name_len: usize,
     #[serde(skip)]
-    revealed: Vec<bool>,
-    #[serde(rename = "_equation")]
+    name_revealed: Vec<bool>,
     equation: String,
+    #[serde(skip)]
+    equ_len: usize,
+    #[serde(skip)]
+    equ_revealed: Vec<bool>,
     cost: u128,
     unlock_criteria: Vec<u8>,
     check: Vec<u8>,
@@ -83,8 +86,10 @@ fn load_theories() -> Vec<Theory> {
         .expect("CRITICAL: theories.json syntax error or field mismatch!");
 
     for theory in &mut theories {
-        theory.len = theory.name.len();
-        theory.revealed = vec![false; theory.len];
+        theory.name_len = theory.name.len();
+        theory.name_revealed = vec![false; theory.name_len];
+        theory.equ_len = theory.equation.len();
+        theory.equ_revealed = vec![false; theory.equ_len];
     }
     theories
 }
@@ -136,19 +141,28 @@ fn render(width: usize, game_state: &GameState, cost: u128) -> () {
         }
 
         let mut display_name: String = String::new();
-
         for (i, c) in theory.name.chars().enumerate() {
-            if theory.unlocked || theory.revealed.get(i).copied().unwrap_or(false) {
+            if theory.unlocked || theory.name_revealed.get(i).copied().unwrap_or(false) {
                 display_name.push(c);
             } else {
                 display_name.push('_');
             }
         }
 
+        let mut display_equ: String = String::new();
+        for (i, c) in theory.equation.chars().enumerate() {
+            if theory.unlocked || theory.name_revealed.get(i).copied().unwrap_or(false) {
+                display_equ.push(c);
+            } else {
+                display_equ.push('_');
+            }
+        }
+
         println!(
-            "{:>3}. {:.<24} Cost: {:.<5}.....{:<width$}",
+            "{:>3}. {}\n     {:.<24} Cost: {:.<5}.....{:<width$}",
             theory.id,
             display_name,
+            display_equ,
             number_to_ign(theory.cost),
             if theory.unlocked {
                 "Unlocked"
@@ -249,40 +263,86 @@ fn worker_theories(theories: &mut Vec<Theory>, worker: u16) {
     let mut rng: rand::prelude::ThreadRng = rand::rng();
 
     for _ in 0..worker {
-        if rng.random_range(0..100) != 0 {
-            continue;
-        }
-        let mut done: Vec<bool> = vec![false; theories.len()];
-
-        loop {
-            let len: usize = theories.len();
-            let index: usize = rng.random_range(0..len);
-            let theory: &mut Theory = &mut theories[index];
-            if done.iter().all(|&x| x) {
-                return;
-            }
-            if !theory.shown || done[index] {
-                done[index] = true;
-                continue;
-            }
-            worker_theory(theory, &mut rng);
-            return;
+        if rng.random_bool(0.5) {
+            worker_names(theories, &mut rng);
+        } else {
+            worker_equations(theories, &mut rng);
         }
     }
 }
 
-fn worker_theory(theory: &mut Theory, rng: &mut rand::prelude::ThreadRng) -> () {
-    let mut done: Vec<bool> = vec![false; theory.len];
+fn worker_names(theories: &mut Vec<Theory>, rng: &mut rand::prelude::ThreadRng) -> () {
+    if rng.random_range(0..100) != 0 {
+        return;
+    }
+    let mut done: Vec<bool> = vec![false; theories.len()];
+
     loop {
-        let index: usize = rng.random_range(0..theory.revealed.len());
-        if theory.revealed.iter().all(|&x| x) || done.iter().all(|&x| x) {
+        let len: usize = theories.len();
+        let index: usize = rng.random_range(0..len);
+        let theory: &mut Theory = &mut theories[index];
+        if done.iter().all(|&x| x) {
             return;
         }
-        if theory.revealed[index] || done[index] {
+        if !theory.shown || done[index] {
             done[index] = true;
             continue;
         }
-        theory.revealed[index] = true;
+        worker_name(theory, rng);
+        return;
+    }
+}
+
+fn worker_name(theory: &mut Theory, rng: &mut rand::prelude::ThreadRng) -> () {
+    let mut done: Vec<bool> = vec![false; theory.name_len];
+    loop {
+        let index: usize = rng.random_range(0..theory.name_revealed.len());
+        if theory.name_revealed.iter().all(|&x| x) || done.iter().all(|&x| x) {
+            return;
+        }
+        if theory.name_revealed[index] || done[index] {
+            done[index] = true;
+            continue;
+        }
+        theory.name_revealed[index] = true;
+        return;
+    }
+}
+
+fn worker_equations(theories: &mut Vec<Theory>, rng: &mut rand::prelude::ThreadRng) -> () {
+    if rng.random_range(0..100) != 0 {
+        return;
+    }
+    let mut done: Vec<bool> = vec![false; theories.len()];
+
+    loop {
+        let len: usize = theories.len();
+        let index: usize = rng.random_range(0..len);
+        let theory: &mut Theory = &mut theories[index];
+        if done.iter().all(|&x| x) {
+            return;
+        }
+        if !theory.shown || done[index] {
+            done[index] = true;
+            continue;
+        }
+        worker_equation(theory, rng);
+        return;
+    }
+}
+
+fn worker_equation(theory: &mut Theory, rng: &mut rand::prelude::ThreadRng) -> () {
+    let mut done: Vec<bool> = vec![false; theory.equ_len];
+    loop {
+        let index: usize = rng.random_range(0..theory.equ_revealed.len());
+        if theory.equ_revealed.iter().all(|&x| x) || done.iter().all(|&x| x) {
+            return;
+        }
+        if theory.equ_revealed[index] || done[index] {
+            done[index] = true;
+            continue;
+        }
+        theory.equ_revealed[index] = true;
         return;
     }
 }
